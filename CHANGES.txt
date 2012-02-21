@@ -1,3 +1,10 @@
+0.5 (2012-02-21)
+----------------
+
+- Fixed tests in pyramid 1.3aX.
+
+- Calling add_viewgroup with the same ``viewgroup`` appends views to it.
+
 0.4 (2011-07-22)
 ----------------
 

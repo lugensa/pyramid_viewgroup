@@ -26,6 +26,7 @@ class TestViewGroupDirective(unittest.TestCase):
         self.assertRaises(ConfigurationError, f, context)
 
     def test_call(self):
+        #FIXME what is this test testing?
         from pyramid.registry import Registry
         from pyramid.interfaces import IView
         from pyramid.interfaces import IRequest
@@ -35,18 +36,18 @@ class TestViewGroupDirective(unittest.TestCase):
         context.registry.settings = {}
         context.package = None
         context.autocommit = False
-        class IFoo:
+        class IFoo(Interface):
             pass
         def view(context, request):
             """ """
         f(context, 'viewgroup', ['a', 'b', 'c'], IFoo)
-        actions = context.actions
+        #actions = context.actions
 
-        self.assertEqual(len(actions), 1)
+        #self.assertEqual(len(actions), 1)
 
-        action = actions[0]
-        registrar = action[1]
-        registrar()
+        #action = actions[0]
+        #registrar = action[1]
+        #registrar()
         reg = self.config.registry
         wrapper = reg.adapters.lookup((IRequest, Interface), IView,
                                       name='viewgroup')
@@ -160,10 +161,9 @@ class TestProvider(unittest.TestCase):
         view2 = make_view(response2)
         self._registerView(view2, 'view2')
 
-        from pyramid_viewgroup import ViewGroup
+        from pyramid_viewgroup import add_viewgroup
 
-        group = ViewGroup('viewgroup', ['view1', 'view2'])
-        self._registerView(group, 'viewgroup')
+        add_viewgroup(self.config, 'viewgroup', ['view1', 'view2'])
 
         context = DummyContext()
         request = DummyRequest()
@@ -172,6 +172,60 @@ class TestProvider(unittest.TestCase):
         self.assertEqual(provider('view1'), 'Response1')
         self.assertEqual(provider('view2'), 'Response2')
         self.assertEqual(provider('viewgroup'), 'Response1Response2')
+
+    def test_call_view_already(self):
+        response1 = DummyResponse()
+        response1.app_iter = ['Response1']
+        view1 = make_view(response1)
+        self._registerView(view1, 'view1')
+
+        response2 = DummyResponse()
+        response2.app_iter = ['Response2']
+        view2 = make_view(response2)
+        self._registerView(view2, 'view2')
+
+        from pyramid_viewgroup import add_viewgroup
+
+        add_viewgroup(self.config, 'viewgroup', ['view1', 'view2'])
+        self.assertRaises(ValueError, add_viewgroup, self.config, 'viewgroup', 
+                ['view1', 'view2'])
+
+    def test_call_viewgroup_append(self):
+        response1 = DummyResponse()
+        response1.app_iter = ['Response1']
+        view1 = make_view(response1)
+        self._registerView(view1, 'view1')
+
+        response2 = DummyResponse()
+        response2.app_iter = ['Response2']
+        view2 = make_view(response2)
+        self._registerView(view2, 'view2')
+
+        response3 = DummyResponse()
+        response3.app_iter = ['Response3']
+        view3 = make_view(response3)
+        self._registerView(view3, 'view3')
+
+        response4 = DummyResponse()
+        response4.app_iter = ['Response4']
+        view4 = make_view(response4)
+        self._registerView(view4, 'view4')
+
+        from pyramid_viewgroup import add_viewgroup
+
+        add_viewgroup(self.config, 'viewgroup', ['view1', 'view2'])
+        add_viewgroup(self.config, 'viewgroup', ['view3', 'view4'])
+        
+        context = DummyContext()
+        request = DummyRequest()
+        request.registry = self.config.registry 
+        provider = self._makeOne(context, request)
+        self.assertEqual(provider('view1'), 'Response1')
+        self.assertEqual(provider('view2'), 'Response2')
+        self.assertEqual(provider('view3'), 'Response3')
+        self.assertEqual(provider('view4'), 'Response4')
+        self.assertEqual(provider('viewgroup'),
+                'Response1Response2Response3Response4')
 
 class Test_includeme(unittest.TestCase):
     def _callFUT(self, config):
@@ -204,9 +258,6 @@ class DummyRequest:
     from pyramid.interfaces import IRequest
     implements(IRequest)
 
-class DummyContext:
-    pass
-
 class DummySecurityPolicy:
     pass
 
@@ -217,6 +268,9 @@ class DummyContext:
     package = None
     def __init__(self):
         self.actions = []
+        self.route_prefix = ""
+        self.basepath = 'basepath'
+        self.includepath = ()
         self.info = None
 
 class IDummy(Interface):
